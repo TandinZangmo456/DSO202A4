@@ -1,18 +1,13 @@
 {{- /*
-charts/tasktracker/templates/configmap.yaml
-Assignment: DSO202 A4 | Descriptor: 3.2, 2.1 (ConfigMaps)
-Purpose: every non-sensitive setting (C2). DB_HOST and BACKEND_URL are built
-from the Service-name helpers, so they always match this release's Services.
-Wave -1: exists before any workload Pod starts.
+configmap.yaml - every non-sensitive value. DB_HOST and BACKEND_URL are built
+from the Service names, so they always match the Services this release creates.
 */}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "tasktracker.configName" . }}
+  name: {{ include "tasktracker.fullname" . }}-config
   labels:
     {{- include "tasktracker.commonLabels" . | nindent 4 }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "-1"
 data:
   # Backend (application naming)
   DB_HOST: {{ include "tasktracker.dbName" . | quote }}
@@ -20,7 +15,7 @@ data:
   DB_NAME: {{ .Values.config.dbName | quote }}
   APP_PORT: {{ .Values.config.appPort | quote }}
   CORS_ORIGIN: {{ .Values.config.corsOrigin | quote }}
-  # Database (official postgres naming), same value as DB_NAME
+  # Database (official postgres image naming), same value as DB_NAME
   POSTGRES_DB: {{ .Values.config.dbName | quote }}
   # Frontend
   BACKEND_URL: {{ printf "http://%s:%v" (include "tasktracker.backendName" .) .Values.backend.service.port | quote }}

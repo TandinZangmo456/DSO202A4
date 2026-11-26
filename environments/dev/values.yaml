@@ -1,21 +1,31 @@
-# environments/dev/values.yaml
-# Assignment: DSO202 A4 (GitOps delivery of the Task Tracker with Argo CD)
-# Descriptor: 4.3.2 (environment configuration)
-# Purpose: dev differences only. Read by the tasktracker-dev Application,
-# which follows branch main with automated sync (fast feedback).
+# =============================================================================
+# File        : environments/dev/values.yaml
+# Assignment  : DSO202 Assignment 4
+# Descriptor  : Unit III 3.2 - Helm values; Unit IV 4.3.1 - Application CRDs
+# Purpose     : Everything that differs in dev from charts/tasktracker/values.yaml.
+#               Read by argocd/applications/tasktracker-dev.yaml, which follows
+#               the main branch, so a merged change here is deployed within
+#               about a minute. A release is a change to an image tag below.
+# =============================================================================
 environment: dev
-existingSecret: tasktracker-credentials   # created from platform/dev SealedSecret
+
+# Contract C3: the Secret created by the Sealed Secrets controller from
+# platform/dev/tasktracker-credentials.sealed.yaml.
+credentials:
+  existingSecret: tasktracker-credentials
 
 database:
   image:
     tag: "1.0"
+
 backend:
   image:
     tag: "1.0"
-  replicaCount: 1
+  replicaCount: 1               # one replica per tier to save memory
+
 frontend:
   image:
     tag: "1.0"
   replicaCount: 1
   service:
-    nodePort: 30080                       # mapped to the host by kind
+    nodePort: 30080             # contract C10: mapped to the host by cluster/kind-cluster.yaml

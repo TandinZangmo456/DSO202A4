@@ -1,9 +1,3 @@
-{{- /*
-charts/tasktracker/templates/db-service.yaml
-Assignment: DSO202 A4 | Descriptor: 1.5.1 (Services)
-Purpose: headless Service for the database StatefulSet. Fixed in the template
-so no value can expose the database. Same wave as the database (C5).
-*/}}
 {{- $tier := dict "ctx" . "tier" "database" }}
 apiVersion: v1
 kind: Service
@@ -11,10 +5,8 @@ metadata:
   name: {{ include "tasktracker.dbName" . }}
   labels:
     {{- include "tasktracker.labels" $tier | nindent 4 }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
 spec:
-  clusterIP: None
+  clusterIP: None                 # headless; no setting can expose the database
   selector:
     {{- include "tasktracker.selectorLabels" $tier | nindent 4 }}
   ports:

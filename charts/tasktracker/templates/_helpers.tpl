@@ -1,20 +1,17 @@
 {{/*
-charts/tasktracker/templates/_helpers.tpl
-Assignment: DSO202 A4 (GitOps delivery of the Task Tracker with Argo CD)
-Descriptor: 3.2 (Helm named templates), adjusted in A4 Task 1
-Purpose: names, labels and image references shared by every template.
-Files starting with "_" never render objects.
+_helpers.tpl - named templates shared by every file in templates/.
+Files whose names begin with an underscore never produce objects.
+Every name starts with "tasktracker." because named templates are global.
 */}}
 
-{{/* tasktracker.name: chart name or nameOverride. */}}
+{{/* tasktracker.name: the chart name, or nameOverride. */}}
 {{- define "tasktracker.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
-tasktracker.fullname: base name of every object. Release "tasktracker" gives
-"tasktracker", so Services are tasktracker-db, tasktracker-backend and
-tasktracker-frontend in both namespaces.
+tasktracker.fullname: the base name of every object, limited to 63 characters.
+A release called "tasktracker" gives "tasktracker", not "tasktracker-tasktracker".
 */}}
 {{- define "tasktracker.fullname" -}}
 {{- if .Values.fullnameOverride }}
@@ -29,21 +26,17 @@ tasktracker-frontend in both namespaces.
 {{- end }}
 {{- end }}
 
+{{/* tasktracker.chart: "<name>-<version>" for the helm.sh/chart label. */}}
 {{- define "tasktracker.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{/* Environment name; rendering stops if the environment file is missing. */}}
+{{/* tasktracker.environment: stops rendering when no environment is chosen. */}}
 {{- define "tasktracker.environment" -}}
-{{- required "environment must be set (use -f environments/<env>/values.yaml)" .Values.environment }}
+{{- required "environment must be set to dev or staging (use -f environments/<env>/values.yaml)" .Values.environment }}
 {{- end }}
 
-{{/* C3: name of the existing credentials Secret. Required, never rendered. */}}
-{{- define "tasktracker.secretName" -}}
-{{- required "existingSecret must be set; the chart never renders a Secret (C3)" .Values.existingSecret }}
-{{- end }}
-
-{{/* Object names per tier. Used by the objects AND the ConfigMap/smoke test. */}}
+{{/* Object names for each tier. Used by the objects AND by the ConfigMap. */}}
 {{- define "tasktracker.dbName" -}}
 {{- printf "%s-db" (include "tasktracker.fullname" .) }}
 {{- end }}
@@ -53,54 +46,55 @@ tasktracker-frontend in both namespaces.
 {{- define "tasktracker.frontendName" -}}
 {{- printf "%s-frontend" (include "tasktracker.fullname" .) }}
 {{- end }}
-{{- define "tasktracker.configName" -}}
-{{- printf "%s-config" (include "tasktracker.fullname" .) }}
+
+{{/*
+tasktracker.secretName: the Secret that holds the database credentials.
+Contract C3: the chart never renders a Secret. In Assignment 4 the Secret is
+created by the Sealed Secrets controller from a SealedSecret in platform/<env>/.
+*/}}
+{{- define "tasktracker.secretName" -}}
+{{- required "credentials.existingSecret must name a Secret with DB_USER, DB_PASSWORD, POSTGRES_USER and POSTGRES_PASSWORD" .Values.credentials.existingSecret }}
 {{- end }}
 
 {{/*
-C1: "<repository>:<tag>", both from values. No tag is written in a template
-and there is no fallback to appVersion, so a missing tag fails the render.
-Call with (dict "image" .Values.<tier>.image "tier" "<tier>").
+tasktracker.image: "<repository>:<tag>". Called with (dict "ctx" $ "image" .Values.<tier>.image).
+Contract C1: the tag comes only from <tier>.image.tag. There is no fallback to
+appVersion, so no tag is hidden in the chart and a release is a values change.
 */}}
 {{- define "tasktracker.image" -}}
-{{- $tag := required (printf "%s.image.tag must be set in the environment values file (C1)" .tier) .image.tag }}
-{{- printf "%s:%s" .image.repository (toString $tag) }}
+{{- $tag := required "every tier needs image.tag (contract C1)" .image.tag }}
+{{- printf "%s:%s" .image.repository $tag }}
 {{- end }}
 
 {{/*
-C2: render a values map as plain env entries, sorted for stable output.
-Call with a map, e.g. (include "tasktracker.extraEnv" .Values.backend.env).
+tasktracker.selectorLabels: the small, stable set that selectors use.
+Called with (dict "ctx" $ "tier" "backend"). Never changes after install,
+because Deployment.spec.selector is immutable.
 */}}
-{{- define "tasktracker.extraEnv" -}}
-{{- range $k, $v := . }}
-- name: {{ $k }}
-  value: {{ $v | toString | quote }}
-{{- end }}
-{{- end }}
-
-{{/* Stable selector labels. Called with (dict "ctx" $ "tier" "<tier>"). */}}
 {{- define "tasktracker.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "tasktracker.name" .ctx }}
 app.kubernetes.io/instance: {{ .ctx.Release.Name }}
 tier: {{ .tier }}
 {{- end }}
 
-{{/* Full label set for an object of one tier. */}}
+{{/* tasktracker.labels: the full label set for an object of one tier. */}}
 {{- define "tasktracker.labels" -}}
 helm.sh/chart: {{ include "tasktracker.chart" .ctx }}
 {{ include "tasktracker.selectorLabels" . }}
 app.kubernetes.io/component: {{ .tier }}
-app.kubernetes.io/part-of: tasktracker
+app.kubernetes.io/part-of: task-tracker
+app.kubernetes.io/version: {{ .ctx.Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .ctx.Release.Service }}
 app.kubernetes.io/environment: {{ include "tasktracker.environment" .ctx | quote }}
 {{- end }}
 
-{{/* Labels for objects that belong to no single tier. */}}
+{{/* tasktracker.commonLabels: labels for objects that belong to no tier. */}}
 {{- define "tasktracker.commonLabels" -}}
 helm.sh/chart: {{ include "tasktracker.chart" . }}
 app.kubernetes.io/name: {{ include "tasktracker.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/part-of: tasktracker
+app.kubernetes.io/part-of: task-tracker
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/environment: {{ include "tasktracker.environment" . | quote }}
 {{- end }}
