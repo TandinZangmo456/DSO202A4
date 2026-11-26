@@ -1,19 +1,29 @@
-# =============================================================================
-# File        : .gitignore
-# Assignment  : DSO202 Assignment 4
-# Purpose     : Keeps key material and plaintext Secrets out of the repository.
-#               Git history is permanent: a value committed once must be treated
-#               as exposed even after the file is deleted.
-# =============================================================================
-# Sealing-key backups (Task 4) and any exported key material
-*.key
-*sealing-key*
-*.backup.yaml
+# .gitignore
+# Assignment: DSO202 A4 (GitOps delivery of the Task Tracker with Argo CD)
+# Descriptor: 4.4.1 (secrets in a GitOps repository)
+# Purpose: keep plaintext credentials and sealing-key backups out of Git.
+# This file is a second line of defence only. Plaintext never belongs inside
+# the repo folder in the first place; the sealing key lives in ../dso202-keys/.
 
-# Plaintext Secrets used only as input to kubeseal
+# Plaintext credentials used once to create SealedSecrets
 secrets-plain/
 *-plain.yaml
+*.env
 
-# Local tooling output
-*.log
+# Sealing-key backups (must stay outside the repo; ignored in case of a mistake)
+sealing-key*.yaml
+*sealed-secrets-key*
+*.key
+*.pem
+*.crt
+
+# Helm build output
+*.tgz
+charts/*/charts/
+charts/*/Chart.lock
+
+# Editor and OS clutter
 .DS_Store
+*.swp
+.vscode/
+.idea/
