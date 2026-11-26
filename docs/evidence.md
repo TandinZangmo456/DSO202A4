@@ -2541,3 +2541,43 @@ Note on the Redis and Dex Pods: my `kubectl delete pod` for them was cut off bef
 The new backup is larger than the first one (14199 bytes against 7087), but it still holds the single key `sealed-secrets-keyqtzg5`. The size grew because the key was re-created with `kubectl apply`, which adds an annotation with the whole object. I did not open the file.
 
 Screenshot of the rebuilt cluster: `task9-rebuilt-environment.png`.
+
+## Task 10 (bonus): multi-source Application
+
+`tasktracker-dev` now has two sources: the chart (`charts/tasktracker`) and the same repository as `ref: values`, so the values file is read as `$values/environments/dev/values.yaml`. The change went through pull request #1 and was squash-merged.
+
+```text
+$ gh pr list --state merged --limit 1
+1	Task 10: make tasktracker-dev a multi-source Application (chart + values ref)	bonus/multi-source	MERGED	2026-11-26T19:40:09Z
+```
+
+```text
+$ kubectl -n argocd get application tasktracker-dev -o jsonpath='{range .spec.sources[*]}{.repoURL} path={.path} ref={.ref}{"\n"}{end}'
+https://github.com/TandinZangmo456/dso202-gitops.git path=charts/tasktracker ref=
+https://github.com/TandinZangmo456/dso202-gitops.git path= ref=values
+```
+
+```text
+$ argocd app get tasktracker-dev | grep -E 'Sync Status|Health Status'
+Sync Status:        Synced to main
+Health Status:      Healthy
+```
+
+```text
+$ argocd app diff tasktracker-dev && echo 'NO DIFF: live objects match Git'
+NO DIFF: live objects match Git
+```
+
+```text
+$ kubectl -n dso202-dev get pods
+NAME                                    READY   STATUS      RESTARTS       AGE
+tasktracker-backend-55bf5d6bd6-fqgzd    1/1     Running     24 (20h ago)   21d
+tasktracker-db-9bf76c557-gvwrt          1/1     Running     24 (20h ago)   21d
+tasktracker-frontend-686db4c7cd-l6fjc   1/1     Running     24 (20h ago)   21d
+tasktracker-smoke-test-qj9lm            0/1     Completed   0              21d
+```
+
+The Pods are older than the merge, and `argocd app diff` is empty: switching to two sources changed where the values file is read from, not what is deployed, so nothing was redeployed. Separate sources are useful when the chart and the environment values have different owners or lifecycles: a platform team can publish a versioned chart while each team keeps its values in its own repository, with access and history split per repository and the chart version pinned independently of the values revision.
+
+![tasktracker-dev with two sources, Synced and Healthy](screenshots/task10-multisource.png)
+
