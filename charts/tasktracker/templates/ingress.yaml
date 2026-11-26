@@ -1,0 +1,27 @@
+{{- /*
+charts/tasktracker/templates/ingress.yaml
+Assignment: DSO202 A4 | Descriptor: 2.1 (Ingress from A2)
+Purpose: optional Ingress, disabled by default (C9). Kept so the chart stays
+complete, but the dso202 AppProject does not whitelist Ingress.
+*/}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tasktracker.fullname" . }}
+  labels:
+    {{- include "tasktracker.commonLabels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "tasktracker.frontendName" . }}
+                port:
+                  name: http
+{{- end }}

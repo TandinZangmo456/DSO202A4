@@ -1,3 +1,9 @@
+{{- /*
+charts/tasktracker/templates/backend-service.yaml
+Assignment: DSO202 A4 | Descriptor: 1.5.1 (Services)
+Purpose: ClusterIP Service for the backend. Type fixed in the template, so
+no value can expose the backend outside the cluster. Wave "1" (C5).
+*/}}
 {{- $tier := dict "ctx" . "tier" "backend" }}
 apiVersion: v1
 kind: Service
@@ -5,8 +11,10 @@ metadata:
   name: {{ include "tasktracker.backendName" . }}
   labels:
     {{- include "tasktracker.labels" $tier | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
-  type: ClusterIP                 # fixed in the template; values cannot expose the backend
+  type: ClusterIP
   selector:
     {{- include "tasktracker.selectorLabels" $tier | nindent 4 }}
   ports:

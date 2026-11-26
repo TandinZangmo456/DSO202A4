@@ -1,3 +1,9 @@
+{{- /*
+charts/tasktracker/templates/frontend-service.yaml
+Assignment: DSO202 A4 | Descriptor: 1.5.1 (Services)
+Purpose: the only tier reachable from outside. NodePort with the port number
+from values (C10): 30080 in dev, 30081 in staging. Wave "2" (C5).
+*/}}
 {{- $tier := dict "ctx" . "tier" "frontend" }}
 apiVersion: v1
 kind: Service
@@ -5,8 +11,10 @@ metadata:
   name: {{ include "tasktracker.frontendName" . }}
   labels:
     {{- include "tasktracker.labels" $tier | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
-  type: NodePort                  # the only tier reachable from outside the cluster
+  type: NodePort
   selector:
     {{- include "tasktracker.selectorLabels" $tier | nindent 4 }}
   ports:

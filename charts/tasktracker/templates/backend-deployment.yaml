@@ -1,5 +1,12 @@
+{{- /*
+charts/tasktracker/templates/backend-deployment.yaml
+Assignment: DSO202 A4 | Descriptor: 1.5.3, 3.2
+Purpose: the REST backend. Wave "1" (C5): starts after the database is
+Healthy. progressDeadlineSeconds 120 (C6) makes a broken rollout turn
+Degraded in Argo CD after two minutes instead of ten.
+*/}}
 {{- $tier := dict "ctx" . "tier" "backend" }}
-{{- $config := printf "%s-config" (include "tasktracker.fullname" .) }}
+{{- $config := include "tasktracker.configName" . }}
 {{- $secret := include "tasktracker.secretName" . }}
 apiVersion: apps/v1
 kind: Deployment
@@ -8,13 +15,10 @@ metadata:
   labels:
     {{- include "tasktracker.labels" $tier | nindent 4 }}
   annotations:
-    # Contract C5: wave 1, after the database (0) and before the frontend (2).
     argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: {{ .Values.backend.replicaCount }}
-  # Contract C6: a rollout that makes no progress for 120 seconds is reported
-  # as failed (Argo CD shows Degraded), instead of after the default 600.
-  progressDeadlineSeconds: 120
+  progressDeadlineSeconds: {{ .Values.backend.progressDeadlineSeconds }}
   selector:
     matchLabels:
       {{- include "tasktracker.selectorLabels" $tier | nindent 6 }}
@@ -25,9 +29,10 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
+      serviceAccountName: {{ include "tasktracker.fullname" . }}-backend
       containers:
         - name: backend
-          image: {{ include "tasktracker.image" (dict "ctx" . "image" .Values.backend.image) | quote }}
+          image: {{ include "tasktracker.image" (dict "image" .Values.backend.image "tier" "backend") | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
@@ -48,13 +53,15 @@ spec:
                   name: {{ $secret }}
                   key: {{ . }}
             {{- end }}
-            {{- with .Values.backend.extraEnv }}
-            # Extra variables from values (contract C2)
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
-          # Contract C4: GET /api/status answers 200 only when the database
-          # connection works, so the backend is ready only with a database.
-          readinessProbe:
-            {{- toYaml .Values.backend.readinessProbe | nindent 12 }}
-          resources:
+            # C2: extra settings from values (backend.env)
+            {{- include "tasktracker.extraEnv" .Values.backend.env | nindent 12 }}
+          readinessProbe:               # C4
+            httpGet:
+              path: {{ .Values.backend.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.backend.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backend.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.backend.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.backend.readinessProbe.failureThreshold }}
+          resources:                    # C7
             {{- toYaml .Values.backend.resources | nindent 12 }}

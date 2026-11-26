@@ -1,5 +1,11 @@
+# charts/tasktracker/.helmignore
+# Assignment: DSO202 A4 | Descriptor: 3.2 | Purpose: files Helm leaves out of the chart.
+.DS_Store
 .git/
+.gitignore
 *.swp
 *.bak
 *.tmp
-.DS_Store
+*.orig
+.vscode/
+.idea/

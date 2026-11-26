@@ -1,14 +1,18 @@
-# Chart.yaml - identity and metadata of the tasktracker chart.
-apiVersion: v2                    # chart format for Helm 3 and Helm 4
-name: tasktracker                 # must match the directory name (charts/tasktracker)
-description: Three-tier Task Tracker (nginx frontend, REST backend, PostgreSQL) for DSO202
+# charts/tasktracker/Chart.yaml
+# Assignment: DSO202 A4 (GitOps delivery of the Task Tracker with Argo CD)
+# Descriptor: 3.2 (Helm charts), adjusted in A4 Task 1
+# Purpose: identity of the Task Tracker chart from Assignment 3, renamed to
+# "tasktracker" and adjusted to the A4 chart contract (C1-C11).
+apiVersion: v2
+name: tasktracker                 # matches the directory name
+description: Three-tier Task Tracker (nginx frontend, REST backend, PostgreSQL), delivered by Argo CD
 type: application
-version: 0.2.0                    # version of the CHART; bump on any chart change
-appVersion: "1.0"                 # label only; image tags are values (contract C1)
+version: 0.2.0                    # chart version; 0.1.0 was the A3 chart
+appVersion: "1.0"                 # informational only; image tags come from values (C1)
 kubeVersion: ">=1.30.0-0"
 keywords:
   - dso202
-  - task-tracker
-  - postgresql
+  - tasktracker
+  - gitops
 maintainers:
   - name: Tandin Zangmo

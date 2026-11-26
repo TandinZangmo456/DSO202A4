@@ -1,50 +1,37 @@
-# values.yaml - default configuration of the tasktracker chart.
-# Defaults only. Everything that differs per environment lives in
-# environments/<env>/values.yaml at the repository root (design rule 2).
+# charts/tasktracker/values.yaml
+# Assignment: DSO202 A4 (GitOps delivery of the Task Tracker with Argo CD)
+# Descriptor: 3.2 (Helm values), adjusted in A4 Task 1 for contract C1-C11
+# Purpose: chart defaults shared by every environment. Environment files in
+# environments/<env>/values.yaml hold ONLY the differences: image tags,
+# replicas, NodePort and existingSecret. Templates never test the environment
+# name (design rule 2).
 
-# Which environment this release is. No default on purpose: the chart
-# refuses to render until dev or staging is chosen.
+# Environment name, used for labels only. Required; set by the environment file.
 environment: ""
 
-# Shared by all three images. Each tier sets its own repository and tag below
-# (contract C1). IfNotPresent lets images loaded with 'kind load' be used.
+# Shared pull policy. Never "Always": images are loaded into kind from the host.
 image:
   pullPolicy: IfNotPresent
 
-# Non-sensitive settings, rendered into the ConfigMap.
-# DB_HOST and BACKEND_URL are not listed here: the templates build them from
-# the Service names, so they can never point at the wrong Service.
+# C3: the chart never renders a Secret. Pods read credentials from this
+# existing Secret, which the platform layer creates from a SealedSecret.
+# Keys expected: DB_USER, DB_PASSWORD, POSTGRES_USER, POSTGRES_PASSWORD.
+existingSecret: ""
+
+# Non-sensitive settings rendered into the ConfigMap. DB_HOST and BACKEND_URL
+# are built from the Service names by the templates, so they cannot drift.
 config:
-  dbName: tasktracker             # used for both DB_NAME and POSTGRES_DB
+  dbName: tasktracker
   dbPort: 5432
   appPort: 8080
   corsOrigin: "*"
 
-# Database credentials (contract C3). The chart never renders a Secret. Pods
-# read the Secret named here, which must have the keys DB_USER, DB_PASSWORD,
-# POSTGRES_USER and POSTGRES_PASSWORD. In Assignment 4 it is created by the
-# Sealed Secrets controller from platform/<env>/tasktracker-credentials.sealed.yaml.
-credentials:
-  existingSecret: tasktracker-credentials
-
-# Per-tier settings. image.tag is the release: the environment values files
-# override it, never a template (contract C1). extraEnv is a list of
-# {name, value} pairs added to the container as they are (contract C2), so a
-# new variable needs a values change only. The images are amd64 rebuilds of
-# the tutor-issued 1.0 images, approved by the tutor for this laptop.
 database:
   image:
-    repository: penguintandinzangmo/dso202-db
-    tag: "1.0"
-  extraEnv: []
-  # Contract C4. pg_isready checks that PostgreSQL accepts connections; the
-  # variables are expanded by the shell inside the container.
-  readinessProbe:
-    exec:
-      command: ["sh", "-c", "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
-    initialDelaySeconds: 5
-    periodSeconds: 5
-  resources:
+    repository: sarojsanyasi/dso202-db
+    tag: ""                       # C1: set per environment ("1.0")
+  env: {}                         # C2: extra plain env vars, KEY: value
+  resources:                      # C7
     requests:
       cpu: 100m
       memory: 256Mi
@@ -54,21 +41,21 @@ database:
   persistence:
     size: 1Gi
     storageClass: standard        # kind's default provisioner
+  readinessProbe:                 # C4: pg_isready inside the container
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 6
 
 backend:
   image:
-    repository: penguintandinzangmo/dso202-backend
-    tag: "1.0"
-  extraEnv: []
-  # Contract C4: /api/status returns 503 while the database is unreachable.
-  readinessProbe:
-    httpGet:
-      path: /api/status
-      port: http
-    initialDelaySeconds: 5
-    periodSeconds: 5
+    repository: sarojsanyasi/dso202-backend
+    tag: ""                       # C1: set per environment
   replicaCount: 1
-  resources:
+  # C2: extra backend configuration. Adding a variable here is a values-only
+  # change; no template edit is needed. Example:  SOME_SETTING: "value"
+  env: {}
+  resources:                      # C7
     requests:
       cpu: 50m
       memory: 64Mi
@@ -76,22 +63,22 @@ backend:
       cpu: 250m
       memory: 128Mi
   service:
-    port: 8080                    # ClusterIP only; there is no setting to expose it
+    port: 8080                    # ClusterIP only; the backend is never exposed
+  readinessProbe:                 # C4: GET /api/status
+    path: /api/status
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 6
+  progressDeadlineSeconds: 120    # C6
 
 frontend:
   image:
-    repository: penguintandinzangmo/dso202-frontend
-    tag: "1.0"
-  extraEnv: []
-  # Contract C4: nginx serves the page.
-  readinessProbe:
-    httpGet:
-      path: /
-      port: http
-    initialDelaySeconds: 2
-    periodSeconds: 5
+    repository: sarojsanyasi/dso202-frontend
+    tag: ""                       # C1: set per environment
   replicaCount: 1
-  resources:
+  env: {}                         # C2
+  resources:                      # C7
     requests:
       cpu: 25m
       memory: 32Mi
@@ -100,7 +87,37 @@ frontend:
       memory: 64Mi
   service:
     port: 8080
-    nodePort: 30080               # contract C10: 30080 in dev (mapped by kind), 30081 in staging
+    nodePort: 30080               # C10: 30080 dev, 30081 staging (set per env)
+  readinessProbe:                 # C4: nginx serves the page at /
+    path: /
+    initialDelaySeconds: 3
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 6
+  progressDeadlineSeconds: 120    # C6
+
+# C9: disabled by default. The dso202 AppProject does not allow Ingress, so
+# enabling this would be rejected at sync time (least privilege).
+ingress:
+  enabled: false
+  className: nginx
+  host: tasktracker.local
+
+# PostSync smoke test (Task 5). Calls the backend Service from inside the
+# namespace after every successful sync.
+smokeTest:
+  enabled: true
+  image: busybox:1.37             # pinned
+  path: /api/tasks
+  attempts: 10
+  intervalSeconds: 3
+  resources:                      # C7: the quota rejects containers without these
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 50m
+      memory: 32Mi
 
 nameOverride: ""
 fullnameOverride: ""

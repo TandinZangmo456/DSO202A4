@@ -1,3 +1,9 @@
+{{- /*
+charts/tasktracker/templates/frontend-deployment.yaml
+Assignment: DSO202 A4 | Descriptor: 1.5.3, 3.2
+Purpose: the nginx frontend. Wave "2" (C5): last tier. BACKEND_URL is
+written into config.js by the image entrypoint at start-up.
+*/}}
 {{- $tier := dict "ctx" . "tier" "frontend" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -6,12 +12,10 @@ metadata:
   labels:
     {{- include "tasktracker.labels" $tier | nindent 4 }}
   annotations:
-    # Contract C5: wave 2, the last tier; it needs the backend to be ready.
     argocd.argoproj.io/sync-wave: "2"
 spec:
   replicas: {{ .Values.frontend.replicaCount }}
-  # Contract C6: report a stuck rollout after 120 seconds, not 600.
-  progressDeadlineSeconds: 120
+  progressDeadlineSeconds: {{ .Values.frontend.progressDeadlineSeconds }}
   selector:
     matchLabels:
       {{- include "tasktracker.selectorLabels" $tier | nindent 6 }}
@@ -22,26 +26,28 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
+      serviceAccountName: {{ include "tasktracker.fullname" . }}-frontend
       containers:
         - name: frontend
-          image: {{ include "tasktracker.image" (dict "ctx" . "image" .Values.frontend.image) | quote }}
+          image: {{ include "tasktracker.image" (dict "image" .Values.frontend.image "tier" "frontend") | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
               containerPort: 8080
           env:
-            # Rendered into config.js by the image's entrypoint at container start
             - name: BACKEND_URL
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "tasktracker.fullname" . }}-config
+                  name: {{ include "tasktracker.configName" . }}
                   key: BACKEND_URL
-            {{- with .Values.frontend.extraEnv }}
-            # Extra variables from values (contract C2)
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
-          # Contract C4: ready when nginx serves the page.
-          readinessProbe:
-            {{- toYaml .Values.frontend.readinessProbe | nindent 12 }}
-          resources:
+            {{- include "tasktracker.extraEnv" .Values.frontend.env | nindent 12 }}
+          readinessProbe:               # C4
+            httpGet:
+              path: {{ .Values.frontend.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.frontend.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.frontend.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.frontend.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.frontend.readinessProbe.failureThreshold }}
+          resources:                    # C7
             {{- toYaml .Values.frontend.resources | nindent 12 }}
